@@ -3,7 +3,7 @@ import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 from prophet import Prophet
-
+import calendar
 # Configuración de la página
 st.set_page_config(page_title="Predicción de Demanda Eléctrica", layout="wide")
 
@@ -36,17 +36,22 @@ with st.spinner('Entrenando el modelo predictivo...'):
 dias_a_predecir = 270
 futuro = modelo.make_future_dataframe(periods=dias_a_predecir, freq='D')
 prediccion = modelo.predict(futuro)
-
 # Filtro de meses para la visualización
 st.sidebar.header("Configuración del Gráfico")
 meses = st.sidebar.slider("Meses a visualizar en 2026", 1, 12, 9)
 
-# Fechas dinámicas según el slider
+# 1. Uso de calendar para sacar el último día exacto del mes seleccionado
+ultimo_dia = calendar.monthrange(2026, meses)[1]
 fecha_inicio = '2026-01-01'
-fecha_fin = f'2026-{meses:02d}-30' if meses != 2 else '2026-02-28'
+fecha_fin = f'2026-{meses:02d}-{ultimo_dia:02d}'
 
-df_plot_real = df_prophet[(df_prophet['ds'] >= fecha_inicio) & (df_prophet['ds'] <= fecha_fin)]
-df_plot_pred = prediccion[(prediccion['ds'] >= fecha_inicio) & (prediccion['ds'] <= fecha_fin)]
+# 2. Conversión explícita a formato datetime para evitar errores de comparación en Pandas
+inicio_dt = pd.to_datetime(fecha_inicio)
+fin_dt = pd.to_datetime(fecha_fin)
+
+# Filtrado de dataframes
+df_plot_real = df_prophet[(df_prophet['ds'] >= inicio_dt) & (df_prophet['ds'] <= fin_dt)]
+df_plot_pred = prediccion[(prediccion['ds'] >= inicio_dt) & (prediccion['ds'] <= fin_dt)]
 
 # --- Renderizar el Gráfico ---
 st.subheader(f"Análisis del Periodo: Enero - Mes {meses} (2026)")
@@ -76,3 +81,8 @@ ax.legend(frameon=False, loc='upper right', ncol=2)
 
 # Mostrar gráfico en Streamlit
 st.pyplot(fig)
+
+# 3. MUY IMPORTANTE: Cerrar la figura para liberar memoria y evitar caídas al mover el slider
+plt.close(fig)
+
+
