@@ -32,13 +32,18 @@ def train_model(data):
     modelo.fit(data)
     return modelo
 
-with st.spinner('Entrenando el modelo predictivo...'):
-    modelo = train_model(df_prophet)
+# NUEVO: 4. Generación de predicciones cacheadas (Esta es la solución al Segmentation Fault)
+# El guion bajo en _modelo le dice a Streamlit que no intente hashear el objeto complejo
+@st.cache_data
+def generate_predictions(_modelo):
+    dias_a_predecir = 270
+    futuro = _modelo.make_future_dataframe(periods=dias_a_predecir, freq='D')
+    return _modelo.predict(futuro)
 
-# 4. Generación de predicciones
-dias_a_predecir = 270
-futuro = modelo.make_future_dataframe(periods=dias_a_predecir, freq='D')
-prediccion = modelo.predict(futuro)
+# Ejecutamos el entrenamiento y la predicción bajo el mismo spinner
+with st.spinner('Entrenando modelo y calculando predicciones... (Esto tomará unos segundos la primera vez)'):
+    modelo = train_model(df_prophet)
+    prediccion = generate_predictions(modelo)
 
 # 5. Barra interactiva en el panel lateral
 st.sidebar.header("Configuración del Gráfico")
@@ -60,19 +65,19 @@ st.subheader(f"Análisis del Periodo: Enero - Mes {meses}")
 
 fig = go.Figure()
 
-# Zona de confianza (Relleno amarillo)
+# Zona de confianza
 fig.add_trace(go.Scatter(
     x=pd.concat([df_plot_pred['ds'], df_plot_pred['ds'][::-1]]),
     y=pd.concat([df_plot_pred['yhat_upper'], df_plot_pred['yhat_lower'][::-1]]),
     fill='toself',
-    fillcolor='rgba(254, 208, 60, 0.25)', # #fed03c con 25% de opacidad
+    fillcolor='rgba(254, 208, 60, 0.25)', 
     line=dict(color='rgba(255,255,255,0)'),
     name='Zona de Confianza (95%)',
     showlegend=True,
     hoverinfo='skip'
 ))
 
-# Umbral de Peak (Línea roja segmentada)
+# Umbral de Peak 
 fig.add_trace(go.Scatter(
     x=df_plot_pred['ds'],
     y=df_plot_pred['yhat_upper'],
@@ -81,7 +86,7 @@ fig.add_trace(go.Scatter(
     name='Umbral de Peak'
 ))
 
-# Demanda Real (Línea principal gris)
+# Demanda Real 
 fig.add_trace(go.Scatter(
     x=df_plot_real['ds'],
     y=df_plot_real['y'],
@@ -108,7 +113,7 @@ fig.update_layout(
     yaxis_title="Demanda Sistémica (MW)",
     xaxis_title="",
     plot_bgcolor='white',
-    hovermode="x unified", # Muestra una línea vertical con todos los datos al pasar el mouse
+    hovermode="x unified", 
     legend=dict(
         orientation="h",
         yanchor="bottom",
@@ -119,10 +124,8 @@ fig.update_layout(
     margin=dict(l=20, r=20, t=20, b=20)
 )
 
-# Agregar la grilla tipo matplotlib
 fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(0,0,0,0.1)')
 fig.update_xaxes(showgrid=False)
 
-# Mostrar en Streamlit
-st.plotly_chart(fig, use_container_width=True)
-
+# 8. Corrección de la advertencia obsoleta (Deprecation Warning resuelto)
+st.plotly_chart(fig, width='stretch')
