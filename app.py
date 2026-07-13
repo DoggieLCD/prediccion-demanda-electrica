@@ -68,5 +68,65 @@ df_plot_real = df_prophet[(df_prophet['ds'] >= inicio_dt) & (df_prophet['ds'] <=
 df_plot_pred = prediccion[(prediccion['ds'] >= inicio_dt) & (prediccion['ds'] <= fin_dt)]
 
 # 7. Renderizado del Gráfico Interactivo con Plotly
-st.subheader(f"Análisis
+st.subheader(f"Análisis del Periodo: Enero - Mes {mes_final} (2026)")
 
+fig = go.Figure()
+
+# Zona de confianza (95%)
+if not df_plot_pred.empty:
+    fig.add_trace(go.Scatter(
+        x=pd.concat([df_plot_pred['ds'], df_plot_pred['ds'][::-1]]),
+        y=pd.concat([df_plot_pred['yhat_upper'], df_plot_pred['yhat_lower'][::-1]]),
+        fill='toself',
+        fillcolor='rgba(254, 208, 60, 0.25)',
+        line=dict(color='rgba(255,255,255,0)'),
+        name='Zona de Confianza (95%)',
+        hoverinfo='skip'
+    ))
+
+    # Umbral de Peak (yhat_upper)
+    fig.add_trace(go.Scatter(
+        x=df_plot_pred['ds'],
+        y=df_plot_pred['yhat_upper'],
+        mode='lines',
+        line=dict(color='#d62728', width=2, dash='dash'),
+        name='Umbral de Peak'
+    ))
+
+# Demanda Real (serie histórica)
+fig.add_trace(go.Scatter(
+    x=df_plot_real['ds'],
+    y=df_plot_real['y'],
+    mode='lines',
+    line=dict(color='#333333', width=2),
+    name='Demanda Real'
+))
+
+# Detección de peaks: cuando la demanda real supera yhat_upper
+if not df_plot_pred.empty and not df_plot_real.empty:
+    peaks = df_plot_real.merge(df_plot_pred[['ds', 'yhat_upper']], on='ds', how='left')
+    peaks_detectados = peaks[peaks['y'] > peaks['yhat_upper']]
+    if not peaks_detectados.empty:
+        fig.add_trace(go.Scatter(
+            x=peaks_detectados['ds'],
+            y=peaks_detectados['y'],
+            mode='markers',
+            marker=dict(color='#fed03c', size=10, line=dict(color='black', width=1.5)),
+            name='Eventos de Peak'
+        ))
+
+# Diseño del gráfico
+fig.update_layout(
+    yaxis_title="Demanda Sistémica (MW)",
+    xaxis_title="",
+    plot_bgcolor='white',
+    hovermode="x unified",
+    legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5),
+    margin=dict(l=20, r=20, t=20, b=20)
+)
+
+fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(0,0,0,0.1)')
+fig.update_xaxes(showgrid=False)
+
+# 8. Mostramos el gráfico en Streamlit (container_width=True ajusta al ancho del layout)
+st.plotly_chart(fig, use_container_width=True)
