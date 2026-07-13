@@ -1,19 +1,16 @@
 import streamlit as st
 import pandas as pd
-import matplotlib
-# Configuración estricta del motor gráfico para servidores sin pantalla (Evita el Segmentation fault)
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
 from prophet import Prophet
 import calendar
+import plotly.graph_objects as go
 
 # 1. Configuración principal de la página
 st.set_page_config(page_title="Predicción de Demanda", layout="wide")
 
 st.title("⚡ Detección Dinámica de Peaks de Demanda Sistémica")
-st.markdown("Plataforma interactiva del modelo predictivo basado en Prophet.")
+st.markdown("Plataforma interactiva del modelo predictivo basado en Prophet. Pase el cursor sobre el gráfico para ver los valores exactos.")
 
-# 2. Carga de datos con caché para mayor velocidad
+# 2. Carga de datos
 @st.cache_data
 def load_data():
     df = pd.read_csv("demanda_sistemica_procesada.csv", sep=';', decimal=',', parse_dates=['fecha'])
@@ -24,10 +21,9 @@ def load_data():
 
 df_prophet = load_data()
 
-# 3. Entrenamiento del modelo con caché
+# 3. Entrenamiento del modelo
 @st.cache_resource
 def train_model(data):
-    # Se ajusta yearly_seasonality=False para asegurar que la memoria RAM de Streamlit Cloud no colapse
     modelo = Prophet(interval_width=0.95, 
                      yearly_seasonality=False, 
                      weekly_seasonality=True, 
@@ -46,10 +42,9 @@ prediccion = modelo.predict(futuro)
 
 # 5. Barra interactiva en el panel lateral
 st.sidebar.header("Configuración del Gráfico")
-# Por defecto lo dejamos en 9, como solicitaste para el gráfico del póster
 meses = st.sidebar.slider("Meses a visualizar en 2026", 1, 12, 9)
 
-# 6. Lógica de fechas exactas y filtrado
+# 6. Lógica de fechas
 ultimo_dia = calendar.monthrange(2026, meses)[1]
 fecha_inicio = '2026-01-01'
 fecha_fin = f'2026-{meses:02d}-{ultimo_dia:02d}'
@@ -60,45 +55,74 @@ fin_dt = pd.to_datetime(fecha_fin)
 df_plot_real = df_prophet[(df_prophet['ds'] >= inicio_dt) & (df_prophet['ds'] <= fin_dt)]
 df_plot_pred = prediccion[(prediccion['ds'] >= inicio_dt) & (prediccion['ds'] <= fin_dt)]
 
-# 7. Renderizado del Gráfico
-st.subheader(f"Análisis del Periodo: Enero - Mes {meses} (2026)")
+# 7. Renderizado del Gráfico Interactivo con Plotly
+st.subheader(f"Análisis del Periodo: Enero - Mes {meses}")
 
-fig, ax = plt.subplots(figsize=(14, 6))
+fig = go.Figure()
 
-# Zona de confianza en amarillo
-ax.fill_between(df_plot_pred['ds'], df_plot_pred['yhat_lower'], df_plot_pred['yhat_upper'], 
-                 color='#fed03c', alpha=0.25, label='Zona de Confianza (95%)')
+# Zona de confianza (Relleno amarillo)
+fig.add_trace(go.Scatter(
+    x=pd.concat([df_plot_pred['ds'], df_plot_pred['ds'][::-1]]),
+    y=pd.concat([df_plot_pred['yhat_upper'], df_plot_pred['yhat_lower'][::-1]]),
+    fill='toself',
+    fillcolor='rgba(254, 208, 60, 0.25)', # #fed03c con 25% de opacidad
+    line=dict(color='rgba(255,255,255,0)'),
+    name='Zona de Confianza (95%)',
+    showlegend=True,
+    hoverinfo='skip'
+))
 
-# Umbral de Peak (línea roja segmentada)
-ax.plot(df_plot_pred['ds'], df_plot_pred['yhat_upper'], 
-        color='#d62728', linestyle='--', linewidth=1.5, alpha=0.7, label='Umbral de Peak')
+# Umbral de Peak (Línea roja segmentada)
+fig.add_trace(go.Scatter(
+    x=df_plot_pred['ds'],
+    y=df_plot_pred['yhat_upper'],
+    mode='lines',
+    line=dict(color='#d62728', width=2, dash='dash'),
+    name='Umbral de Peak'
+))
 
-# Demanda Real (línea principal gris oscura)
-ax.plot(df_plot_real['ds'], df_plot_real['y'], 
-        color='#333333', linewidth=1.2, label='Demanda Real')
+# Demanda Real (Línea principal gris)
+fig.add_trace(go.Scatter(
+    x=df_plot_real['ds'],
+    y=df_plot_real['y'],
+    mode='lines',
+    line=dict(color='#333333', width=2),
+    name='Demanda Real'
+))
 
-# Puntos de Peaks detectados (amarillos con borde negro)
+# Puntos de Peaks detectados
 peaks = df_plot_real.merge(df_plot_pred[['ds', 'yhat_upper']], on='ds')
 peaks_detectados = peaks[peaks['y'] > peaks['yhat_upper']]
 
 if not peaks_detectados.empty:
-    ax.scatter(peaks_detectados['ds'], peaks_detectados['y'], 
-               color='#fed03c', edgecolors='black', s=60, zorder=10, label='Eventos de Peak')
+    fig.add_trace(go.Scatter(
+        x=peaks_detectados['ds'],
+        y=peaks_detectados['y'],
+        mode='markers',
+        marker=dict(color='#fed03c', size=10, line=dict(color='black', width=1.5)),
+        name='Eventos de Peak'
+    ))
 
-# Configuración estética final
-ax.spines['top'].set_visible(False)
-ax.spines['right'].set_visible(False)
-ax.grid(axis='y', linestyle='--', alpha=0.4)
-ax.set_ylabel('Demanda Sistémica (MW)', fontsize=12)
+# Diseño del gráfico
+fig.update_layout(
+    yaxis_title="Demanda Sistémica (MW)",
+    xaxis_title="",
+    plot_bgcolor='white',
+    hovermode="x unified", # Muestra una línea vertical con todos los datos al pasar el mouse
+    legend=dict(
+        orientation="h",
+        yanchor="bottom",
+        y=-0.2,
+        xanchor="center",
+        x=0.5
+    ),
+    margin=dict(l=20, r=20, t=20, b=20)
+)
 
-# Centrado de leyenda
-ax.legend(loc='upper center', bbox_to_anchor=(0.5, -0.15), frameon=False, ncol=4)
+# Agregar la grilla tipo matplotlib
+fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(0,0,0,0.1)')
+fig.update_xaxes(showgrid=False)
 
-plt.tight_layout()
-
-# Mostrar gráfico en la web
-st.pyplot(fig)
-
-# 8. Liberación de memoria crítica
-plt.close(fig)
+# Mostrar en Streamlit
+st.plotly_chart(fig, use_container_width=True)
 
