@@ -4,7 +4,7 @@ from prophet.serialize import model_from_json
 import calendar
 import plotly.graph_objects as go
 import json
-
+from prophet.plot import plot_components_plotly
 # 1. Configuración principal de la página
 st.set_page_config(page_title="Predicción de Demanda", layout="wide")
 st.title("⚡ Detección Dinámica de Peaks de Demanda Sistémica")
@@ -116,7 +116,24 @@ fig.update_layout(
     legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5),
     margin=dict(l=20, r=20, t=20, b=20)
 )
+# --- NUEVA SECCIÓN: GRÁFICO DE ESTACIONALIDAD ---
 
+st.markdown("---") # Línea divisoria visual
+st.subheader("🔍 Análisis de Componentes del Sistema")
+st.markdown("Desglose de la tendencia subyacente y los patrones persistentes detectados por el algoritmo.")
+
+# Prophet tiene una función nativa para dibujar los componentes interactivos con Plotly
+fig_componentes = plot_components_plotly(modelo, prediccion)
+
+# Ajuste estético para que combine con el fondo blanco de tu app
+fig_componentes.update_layout(
+    plot_bgcolor='white',
+    margin=dict(l=20, r=20, t=30, b=20)
+)
+fig_componentes.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(0,0,0,0.1)')
+
+# Mostrar en Streamlit
+st.plotly_chart(fig_componentes, use_container_width=True)
 fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(0,0,0,0.1)')
 fig.update_xaxes(showgrid=False)
 
