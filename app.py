@@ -116,6 +116,10 @@ fig.update_layout(
     legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5),
     margin=dict(l=20, r=20, t=20, b=20)
 )
+
+
+# 8. Mostramos el gráfico en Streamlit
+st.plotly_chart(fig, use_container_width=True)
 # --- NUEVA SECCIÓN: GRÁFICO DE ESTACIONALIDAD ---
 
 st.markdown("---") # Línea divisoria visual
@@ -136,6 +140,3 @@ fig_componentes.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(0,0,0,0
 st.plotly_chart(fig_componentes, use_container_width=True)
 fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(0,0,0,0.1)')
 fig.update_xaxes(showgrid=False)
-
-# 8. Mostramos el gráfico en Streamlit
-st.plotly_chart(fig, use_container_width=True)
