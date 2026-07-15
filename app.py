@@ -70,7 +70,7 @@ col4.metric("Días Proyectados", f"+{dias_prediccion} días")
 st.markdown("---")
 
 # ==========================================
-# 6. GRÁFICO PRINCIPAL (Estilo Colab/Prophet Nativo)
+# 6. GRÁFICO PRINCIPAL (Estilo Colab Corregido - Líneas)
 # ==========================================
 st.subheader("📈 Proyección de Demanda Sistémica")
 
@@ -88,28 +88,29 @@ fig_main.add_trace(go.Scatter(
     hoverinfo="skip", showlegend=True, name='Intervalo de Confianza'
 ))
 
-# 6.2 Predicción del Modelo (Línea Azul contínua)
+# 6.2 Demanda Real Histórica (LÍNEA CONTINUA)
+# Cambiamos mode='markers' a mode='lines'
+fig_main.add_trace(go.Scatter(
+    x=df_hist_filtrado['ds'], y=df_hist_filtrado['y'], 
+    mode='lines', name='Demanda Real (y)', 
+    line=dict(color='#333333', width=1.5) # Línea gris oscura/negra
+))
+
+# 6.3 Predicción del Modelo (Línea Azul contínua)
 fig_main.add_trace(go.Scatter(
     x=pred_filtrada['ds'], y=pred_filtrada['yhat'], 
     mode='lines', name='Predicción (yhat)', line=dict(color='#0072B2', width=2)
 ))
 
-# 6.3 Demanda Real Histórica (PUNTOS NEGROS)
-fig_main.add_trace(go.Scatter(
-    x=df_hist_filtrado['ds'], y=df_hist_filtrado['y'], 
-    mode='markers', name='Demanda Real (y)', 
-    marker=dict(color='black', size=4)
-))
-
-# 6.4 Detección de Peaks Operacionales (PUNTOS ROJOS)
+# 6.4 Detección de Peaks Operacionales (Estilo original amarillo)
 df_merge = pd.merge(df_hist_filtrado, pred_filtrada[['ds', 'yhat_upper']], on='ds', how='inner')
 peaks = df_merge[df_merge['y'] > df_merge['yhat_upper']]
 
 if not peaks.empty:
     fig_main.add_trace(go.Scatter(
         x=peaks['ds'], y=peaks['y'],
-        mode='markers', name='Anomalía / Peak',
-        marker=dict(color='red', size=6, symbol='x')
+        mode='markers', name='Eventos de Peak',
+        marker=dict(color='#fed03c', size=10, line=dict(color='black', width=1.5)) # Tu estilo original
     ))
 
 # 6.5 Línea vertical divisoria (Pasado vs Futuro)
@@ -128,18 +129,6 @@ fig_main.update_layout(
 )
 
 st.plotly_chart(fig_main, use_container_width=True)
-
-# Leyenda explicativa en un expander
-with st.expander("📖 ¿Cómo interpretar este gráfico?", expanded=True):
-    st.markdown("""
-    * **Puntos Negros (Demanda Real):** Representan los datos históricos exactos registrados por el sistema.
-    * **Línea Azul (Predicción):** Es el valor de tendencia central esperado calculado por el modelo predictivo.
-    * **Sombra Celeste (Intervalo de Confianza):** Muestra los límites esperados de fluctuación normal.
-    * **Cruces Rojas (Anomalía/Peak):** Se marcan cuando un punto de demanda real supera el límite superior del intervalo de confianza.
-    * **Línea Verde (Inicio de Proyección):** Separa los datos históricos reales de los días futuros proyectados por el algoritmo.
-    """)
-
-st.markdown("---")
 
 # ==========================================
 # 7. ANÁLISIS DE ESTACIONALIDAD Y COMPONENTES
