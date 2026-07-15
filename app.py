@@ -70,17 +70,35 @@ col4.metric("Días Proyectados", f"+{dias_prediccion} días")
 st.markdown("---")
 
 # ==========================================
-# 6. GRÁFICO PRINCIPAL (Estilo Colab Corregido - Líneas)
+# 6. GRÁFICO PRINCIPAL (Predicción solo en el futuro)
 # ==========================================
 st.subheader("📈 Proyección de Demanda Sistémica")
 
-# Filtramos los datos según el año seleccionado en el sidebar
+# Filtramos los datos según el año seleccionado
 df_hist_filtrado = df_historico[df_historico['ds'].dt.year >= anio_inicio]
 pred_filtrada = prediccion[prediccion['ds'].dt.year >= anio_inicio]
 
+# Separamos el pasado del futuro para no mezclar líneas
+ultima_fecha_real = df_hist_filtrado['ds'].max()
+pred_futuro = pred_filtrada[pred_filtrada['ds'] > ultima_fecha_real]
+
 fig_main = go.Figure()
 
-# 6.1 Zona de Riesgo / Intervalo de confianza (Sombra celeste)
+# 1. Demanda Real Histórica (LÍNEA CONTINUA hasta el día de hoy)
+fig_main.add_trace(go.Scatter(
+    x=df_hist_filtrado['ds'], y=df_hist_filtrado['y'], 
+    mode='lines', name='Demanda Real', 
+    line=dict(color='#333333', width=2)
+))
+
+# 2. Predicción (Línea Azul, SÓLO HACIA EL FUTURO)
+fig_main.add_trace(go.Scatter(
+    x=pred_futuro['ds'], y=pred_futuro['yhat'], 
+    mode='lines', name='Predicción Futura', 
+    line=dict(color='#0072B2', width=2, dash='solid')
+))
+
+# 3. Zona de Riesgo (Sombra celeste, en todo el gráfico para ver anomalías pasadas y futuras)
 fig_main.add_trace(go.Scatter(
     x=pd.concat([pred_filtrada['ds'], pred_filtrada['ds'][::-1]]),
     y=pd.concat([pred_filtrada['yhat_upper'], pred_filtrada['yhat_lower'][::-1]]),
@@ -88,21 +106,7 @@ fig_main.add_trace(go.Scatter(
     hoverinfo="skip", showlegend=True, name='Intervalo de Confianza'
 ))
 
-# 6.2 Demanda Real Histórica (LÍNEA CONTINUA)
-# Cambiamos mode='markers' a mode='lines'
-fig_main.add_trace(go.Scatter(
-    x=df_hist_filtrado['ds'], y=df_hist_filtrado['y'], 
-    mode='lines', name='Demanda Real (y)', 
-    line=dict(color='#333333', width=1.5) # Línea gris oscura/negra
-))
-
-# 6.3 Predicción del Modelo (Línea Azul contínua)
-fig_main.add_trace(go.Scatter(
-    x=pred_filtrada['ds'], y=pred_filtrada['yhat'], 
-    mode='lines', name='Predicción (yhat)', line=dict(color='#0072B2', width=2)
-))
-
-# 6.4 Detección de Peaks Operacionales (Estilo original amarillo)
+# 4. Detección de Peaks Operacionales (Tus círculos amarillos)
 df_merge = pd.merge(df_hist_filtrado, pred_filtrada[['ds', 'yhat_upper']], on='ds', how='inner')
 peaks = df_merge[df_merge['y'] > df_merge['yhat_upper']]
 
@@ -110,15 +114,10 @@ if not peaks.empty:
     fig_main.add_trace(go.Scatter(
         x=peaks['ds'], y=peaks['y'],
         mode='markers', name='Eventos de Peak',
-        marker=dict(color='#fed03c', size=10, line=dict(color='black', width=1.5)) # Tu estilo original
+        marker=dict(color='#fed03c', size=10, line=dict(color='black', width=1.5))
     ))
 
-# 6.5 Línea vertical divisoria (Pasado vs Futuro)
-ultima_fecha = df_hist_filtrado['ds'].max()
-fig_main.add_vline(x=ultima_fecha, line_width=2, line_dash="dash", line_color="green", 
-                   annotation_text="Inicio de Proyección", annotation_position="top right")
-
-# 6.6 Diseño del gráfico principal
+# 5. Diseño del gráfico principal
 fig_main.update_layout(
     template="plotly_white",
     hovermode="x unified",
@@ -127,6 +126,10 @@ fig_main.update_layout(
     yaxis_title="Demanda Sistémica (MW)",
     xaxis_title=""
 )
+
+# Línea vertical que marca "El Presente"
+fig_main.add_vline(x=ultima_fecha_real, line_width=2, line_dash="dash", line_color="green", 
+                   annotation_text="Hoy", annotation_position="top right")
 
 st.plotly_chart(fig_main, use_container_width=True)
 
